@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asistente de Selección y Entrevistas — UADE</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:   #0F172A;
+    --blue:   #2563EB;
+    --blue-l: #EFF6FF;
+    --blue-b: #BFDBFE;
+    --green:  #059669;
+    --green-l:#DCFCE7;
+    --red:    #DC2626;
+    --red-l:  #FEE2E2;
+    --amber:  #D97706;
+    --amber-l:#FEF3C7;
+    --gray:   #6B7280;
+    --gray-l: #F9FAFB;
+    --border: #E5E7EB;
+    --text:   #111827;
+    --text2:  #6B7280;
+    --text3:  #9CA3AF;
+    --white:  #FFFFFF;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  }
+
+  body {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #F1F5F9;
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 3rem;
+  }
+
+  header {
+    background: var(--navy);
+    padding: 0 2rem;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  header .logo {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--blue); display: flex; align-items: center; justify-content: center;
+  }
+  header .logo svg { width: 18px; height: 18px; fill: white; }
+  header h1 { font-size: 15px; font-weight: 600; color: white; }
+  header span { font-size: 12px; color: #94A3B8; margin-left: 4px; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+  }
+
+  .section-label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .6px; color: var(--text3); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  textarea {
+    width: 100%; min-height: 180px; resize: vertical;
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font-size: 13px; font-family: 'DM Mono', monospace;
+    line-height: 1.6; color: var(--text); background: var(--gray-l);
+    outline: none; transition: border .15s;
+  }
+  textarea:focus { border-color: var(--blue); background: white; }
+  textarea::placeholder { color: var(--text3); }
+
+  .actions { display: flex; align-items: center; gap: 10px; margin: 14px 0; }
+
+  button {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all .15s; border: none; outline: none;
+  }
+  .btn-primary { background: var(--blue); color: white; }
+  .btn-primary:hover { background: #1D4ED8; }
+  .btn-primary:disabled { background: #93C5FD; cursor: not-allowed; }
+  .btn-secondary { background: white; color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--gray-l); }
+  .btn-secondary:disabled { opacity: .5; cursor: not-allowed; }
+
+  .error-msg { font-size: 13px; color: var(--red); }
+
+  /* Pipeline steps */
+  .pipeline {
+    display: none; align-items: center; gap: 0; margin: 14px 0;
+    background: white; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px;
+  }
+  .pipeline.visible { display: flex; }
+  .step { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+  .step-dot {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 2px solid var(--border); background: var(--gray-l);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--text3); transition: all .3s;
+  }
+  .step-dot.active { border-color: var(--blue); background: var(--blue-l); color: var(--blue); animation: pulse 1.5s infinite; }
+  .step-dot.done { border-color: var(--green); background: var(--green-l); color: var(--green); }
+  .step-lbl { font-size: 10px; color: var(--text3); text-align: center; }
+  .step-lbl.active { color: var(--blue); font-weight: 600; }
+  .step-lbl.done { color: var(--green); }
+  .step-conn { flex: 1; height: 2px; background: var(--border); max-width: 40px; }
+  .step-conn.done { background: var(--green); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  /* Results */
+  #results { display: none; }
+
+  .score-section { display: grid; grid-template-columns: 200px 1fr; gap: 14px; margin-bottom: 14px; }
+
+  .score-card {
+    background: white; border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 1.5rem 1rem; gap: 12px;
+  }
+  .score-ring { transition: stroke-dashoffset 1.2s ease; transform-origin: center; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px;
+  }
+  .badge-green { background: var(--green-l); color: #065F46; }
+  .badge-red   { background: var(--red-l);   color: #991B1B; }
+  .badge-amber { background: var(--amber-l); color: #92400E; }
+  .badge-blue  { background: var(--blue-l);  color: #1E40AF; }
+
+  .just-text { font-size: 12px; color: var(--text2); text-align: center; line-height: 1.5; }
+
+  .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .profile-item p.label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 2px; }
+  .profile-item p.val { font-size: 13px; font-weight: 600; color: var(--text); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    font-size: 12px; padding: 3px 9px; border-radius: 20px;
+    border: 1px solid var(--border); color: var(--text2); background: var(--gray-l);
+  }
+
+  .gap-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid var(--border);
+  }
+  .gap-row:last-child { border-bottom: none; }
+  .gap-icon { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
+  .gap-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .gap-ev { font-size: 12px; color: var(--text2); font-style: italic; margin-top: 2px; }
+
+  .q-card {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 10px; background: white;
+  }
+  .q-card:last-child { margin-bottom: 0; }
+  .q-type { margin-bottom: 6px; }
+  .q-text { font-size: 14px; color: var(--text); line-height: 1.6; margin-bottom: 8px; }
+  .q-buscar { font-size: 12px; color: var(--text2); line-height: 1.5; }
+  .q-buscar strong { color: var(--text2); }
+
+  .val-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .val-item {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; text-align: center;
+  }
+  .val-icon { font-size: 22px; margin-bottom: 4px; }
+  .val-label { font-size: 11px; color: var(--text2); margin-bottom: 2px; }
+  .val-status { font-size: 13px; font-weight: 700; }
+  .val-status.pasa { color: var(--green); }
+  .val-status.falla { color: var(--red); }
+
+  .verdict {
+    border-radius: 8px; padding: 12px 16px;
+    font-size: 13px; font-weight: 600; display: flex; align-items: flex-start; gap: 8px;
+  }
+  .verdict.ok { background: var(--green-l); color: #065F46; }
+  .verdict.fail { background: var(--red-l); color: #991B1B; }
+  .verdict-obs { font-size: 12px; font-weight: 400; margin-top: 4px; opacity: .85; }
+
+  footer {
+    text-align: center; font-size: 12px; color: var(--text3);
+    margin-top: 2.5rem; padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  svg.icon { width: 16px; height: 16px; vertical-align: middle; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+  </div>
+  <h1>Asistente de Selección y Entrevistas</h1>
+  <span>UADE · IA Aplicada · Pipeline anti-alucinación v2</span>
+</header>
+
+<div class="container">
+
+  <!-- Inputs -->
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card">
+      <p class="section-label">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Descripción del puesto (JD)
+      </p>
+      <textarea id="jd" placeholder="Pegá aquí el Job Description completo con requisitos excluyentes y deseables..."></textarea>
+    </div>
+    <div class="card">
+      <p class="section-label">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Currículum del candidato (CV)
+      </p>
+      <textarea id="cv" placeholder="Pegá aquí el texto completo del CV..."></textarea>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn-primary" id="btn-run" onclick="runPipeline()">
+      <svg class="icon" viewBox="0 0 24 24" style="fill:white;stroke:none"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm1 14.5v-9l6 4.5-6 4.5z"/></svg>
+      Analizar candidato
+    </button>
+    <button class="btn-secondary" id="btn-demo" onclick="loadDemo()">✦ Cargar demo</button>
+    <span class="error-msg" id="err"></span>
+  </div>
+
+  <!-- Pipeline progress -->
+  <div class="pipeline" id="pipeline">
+    <div class="step">
+      <div class="step-dot" id="s1">①</div>
+      <span class="step-lbl" id="l1">Extracción</span>
+    </div>
+    <div class="step-conn" id="c1"></div>
+    <div class="step">
+      <div class="step-dot" id="s2">②</div>
+      <span class="step-lbl" id="l2">Brechas</span>
+    </div>
+    <div class="step-conn" id="c2"></div>
+    <div class="step">
+      <div class="step-dot" id="s3">③</div>
+      <span class="step-lbl" id="l3">Score</span>
+    </div>
+    <div class="step-conn" id="c3"></div>
+    <div class="step">
+      <div class="step-dot" id="s4">④</div>
+      <span class="step-lbl" id="l4">Entrevista</span>
+    </div>
+    <div class="step-conn" id="c4"></div>
+    <div class="step">
+      <div class="step-dot" id="s5">⑤</div>
+      <span class="step-lbl" id="l5">Validación</span>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <div class="score-section">
+      <div class="score-card">
+        <svg width="130" height="130" viewBox="0 0 130 130">
+          <circle cx="65" cy="65" r="54" fill="none" stroke="#E5E7EB" stroke-width="10"/>
+          <circle id="score-ring" cx="65" cy="65" r="54" fill="none" stroke="#059669" stroke-width="10"
+            stroke-linecap="round" transform="rotate(-90 65 65)" class="score-ring"
+            stroke-dasharray="339" stroke-dashoffset="339"/>
+          <text id="score-num" x="65" y="61" text-anchor="middle" font-size="28" font-weight="600"
+            fill="#111827" font-family="DM Sans, sans-serif">—</text>
+          <text x="65" y="79" text-anchor="middle" font-size="11" fill="#9CA3AF"
+            font-family="DM Sans, sans-serif">match score</text>
+        </svg>
+        <span id="rec-badge" class="badge badge-blue">—</span>
+        <p id="score-just" class="just-text"></p>
+      </div>
+
+      <div class="card">
+        <p class="section-label">Perfil extraído</p>
+        <div class="profile-grid">
+          <div class="profile-item"><p class="label">Último rol</p><p class="val" id="p-rol">—</p></div>
+          <div class="profile-item"><p class="label">Experiencia</p><p class="val" id="p-exp">—</p></div>
+          <div class="profile-item"><p class="label">Educación</p><p class="val" id="p-edu">—</p></div>
+          <div class="profile-item"><p class="label">Confianza extracción</p><p class="val" id="p-conf">—</p></div>
+        </div>
+        <p class="section-label" style="margin-top:8px">Hard Skills</p>
+        <div class="chips" id="p-skills"></div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:14px">
+      <div class="card">
+        <p class="section-label" style="color:#065F46">✓ Match Fuerte</p>
+        <div id="match-list"></div>
+      </div>
+      <div class="card">
+        <p class="section-label" style="color:#991B1B">⚠ Brechas Detectadas</p>
+        <div id="gaps-list"></div>
+      </div>
+    </div>
+
+    <div class="card" id="interview-card" style="margin-bottom:14px;display:none">
+      <p class="section-label">Guía de Entrevista Personalizada</p>
+      <div id="q-list"></div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <p class="section-label">Auditoría Anti-Alucinación</p>
+      <div class="val-grid" id="val-controls"></div>
+      <div id="val-verdict" class="verdict ok"></div>
+    </div>
+
+  </div>
+
+  <footer>
+    TPO — Asistente de Selección y Entrevistas · UADE IA Aplicada ·
+    Pipeline de 5 capas · Política de cero alucinación v2
+  </footer>
+
+</div>
+
+<script>
+const API = '/api/analyze';
+
+async function step(stepName, cv, jd, ctx) {
+  const r = await fetch(API, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ step: stepName, cv, jd, ctx })
+  });
+  const data = await r.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+function setStep(n, done) {
+  for (let i = 1; i <= 5; i++) {
+    const dot = document.getElementById('s' + i);
+    const lbl = document.getElementById('l' + i);
+    const conn = i < 5 ? document.getElementById('c' + i) : null;
+    if (i < n) {
+      dot.className = 'step-dot done'; dot.textContent = '✓';
+      lbl.className = 'step-lbl done';
+      if (conn) conn.className = 'step-conn done';
+    } else if (i === n && !done) {
+      dot.className = 'step-dot active';
+      lbl.className = 'step-lbl active';
+    } else {
+      dot.className = 'step-dot'; dot.textContent = '①②③④⑤'[i-1];
+      lbl.className = 'step-lbl';
+      if (conn) conn.className = 'step-conn';
+    }
+  }
+  if (done) {
+    for (let i = 1; i <= 5; i++) {
+      document.getElementById('s' + i).className = 'step-dot done';
+      document.getElementById('s' + i).textContent = '✓';
+      document.getElementById('l' + i).className = 'step-lbl done';
+    }
+  }
+}
+
+async function runPipeline() {
+  const jd = document.getElementById('jd').value.trim();
+  const cv = document.getElementById('cv').value.trim();
+  const err = document.getElementById('err');
+  err.textContent = '';
+  if (!jd || !cv) { err.textContent = 'Completá ambos campos.'; return; }
+
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('pipeline').classList.add('visible');
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('btn-demo').disabled = true;
+
+  try {
+    setStep(1, false);
+    const t1 = await step('t1', cv, jd, {});
+
+    setStep(2, false);
+    const t2 = await step('t2', cv, jd, { t1 });
+
+    setStep(3, false);
+    const t3 = await step('t3', cv, jd, { t2 });
+
+    setStep(4, false);
+    let t4 = null;
+    if (t3.match_score >= 55) t4 = await step('t4', cv, jd, { t2, t3 });
+
+    setStep(5, false);
+    const val = await step('val', cv, jd, { t2, t3, t4 });
+
+    setStep(5, true);
+    renderResults(t1, t2, t3, t4, val);
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('pipeline').classList.remove('visible');
+
+  } catch(e) {
+    err.textContent = 'Error: ' + e.message;
+    document.getElementById('pipeline').classList.remove('visible');
+  }
+
+  document.getElementById('btn-run').disabled = false;
+  document.getElementById('btn-demo').disabled = false;
+}
+
+function renderResults(t1, t2, t3, t4, val) {
+  const score = Math.round(t3.match_score || 0);
+  const circ = 339;
+  const offset = circ - (score / 100) * circ;
+  const ring = document.getElementById('score-ring');
+  const color = score >= 70 ? '#059669' : score >= 55 ? '#D97706' : '#DC2626';
+  ring.setAttribute('stroke', color);
+  setTimeout(() => ring.setAttribute('stroke-dashoffset', offset), 100);
+  document.getElementById('score-num').textContent = score + '%';
+  document.getElementById('score-num').setAttribute('fill', color);
+
+  const rec = document.getElementById('rec-badge');
+  rec.textContent = t3.recomendacion || '—';
+  const rcls = score >= 70 ? 'badge-green' : score >= 55 ? 'badge-amber' : 'badge-red';
+  rec.className = 'badge ' + rcls;
+  document.getElementById('score-just').textContent = t3.justificacion_score || '';
+
+  document.getElementById('p-rol').textContent = t1.ultimo_rol || '—';
+  const exp = t1.anos_experiencia_total;
+  document.getElementById('p-exp').textContent = (exp && exp !== 'No especificado') ? exp + ' años' : (exp || '—');
+  document.getElementById('p-edu').textContent = t1.nivel_educativo || '—';
+  const conf = t1.confianza_extraccion || '';
+  const cel = document.getElementById('p-conf');
+  cel.textContent = conf;
+  cel.style.color = conf === 'Alta' ? '#059669' : conf === 'Media' ? '#D97706' : '#DC2626';
+
+  const sc = document.getElementById('p-skills');
+  sc.innerHTML = '';
+  (t1.hard_skills || []).forEach(s => {
+    const c = document.createElement('span'); c.className = 'chip'; c.textContent = s; sc.appendChild(c);
+  });
+
+  const ml = document.getElementById('match-list');
+  ml.innerHTML = '';
+  (t2.match_fuerte || []).forEach(m => {
+    const d = document.createElement('div'); d.className = 'gap-row';
+    d.innerHTML = `<span class="gap-icon" style="color:#059669">✓</span><div><p class="gap-name">${m.skill}</p><p class="gap-ev">"${m.evidencia_en_cv}"</p></div>`;
+    ml.appendChild(d);
+  });
+  if (!ml.children.length) ml.innerHTML = '<p style="font-size:13px;color:#6B7280">Sin coincidencias detectadas.</p>';
+
+  const gl = document.getElementById('gaps-list');
+  gl.innerHTML = '';
+  const exc = (t2.brechas_excluyentes || []).map(b => ({...b, icon:'⛔', cls:'badge-red'}));
+  const des = (t2.brechas_deseables || []).map(b => ({...b, icon:'⚠', cls:'badge-amber'}));
+  [...exc, ...des].forEach(g => {
+    const d = document.createElement('div'); d.className = 'gap-row';
+    d.innerHTML = `<span class="gap-icon">${g.icon}</span><div><p class="gap-name">${g.requisito}</p><span class="badge ${g.cls}" style="margin-top:3px">${g.severidad}</span></div>`;
+    gl.appendChild(d);
+  });
+  if (!gl.children.length) gl.innerHTML = '<p style="font-size:13px;color:#059669;font-weight:600">Sin brechas. Perfil completo ✓</p>';
+
+  const ic = document.getElementById('interview-card');
+  const ql = document.getElementById('q-list');
+  ql.innerHTML = '';
+  if (t4 && t4.preguntas) {
+    ic.style.display = 'block';
+    const colors = ['badge-blue', 'badge-red', 'badge-green', 'badge-amber'];
+    t4.preguntas.forEach((p, i) => {
+      const d = document.createElement('div'); d.className = 'q-card';
+      d.innerHTML = `<div class="q-type"><span class="badge ${colors[i]}">${p.tipo}</span></div><p class="q-text">${p.pregunta}</p><p class="q-buscar"><strong>Qué buscar:</strong> ${p.que_buscar}</p>`;
+      ql.appendChild(d);
+    });
+  } else { ic.style.display = 'none'; }
+
+  const vc = document.getElementById('val-controls');
+  vc.innerHTML = '';
+  [{k:'control_1',l:'Match sin inferencias'},{k:'control_2',l:'Score sin suposiciones'},{k:'control_3',l:'Preguntas referencian CV'}].forEach(c => {
+    const ok = val[c.k] === 'PASA';
+    const d = document.createElement('div'); d.className = 'val-item';
+    d.innerHTML = `<div class="val-icon">${ok?'🛡️':'⚠️'}</div><p class="val-label">${c.l}</p><p class="val-status ${ok?'pasa':'falla'}">${val[c.k]}</p>`;
+    vc.appendChild(d);
+  });
+
+  const vv = document.getElementById('val-verdict');
+  const ok = val.veredicto && val.veredicto.includes('exitosa');
+  vv.className = 'verdict ' + (ok ? 'ok' : 'fail');
+  vv.innerHTML = `<span style="font-size:18px">${ok?'✅':'❌'}</span><div>${val.veredicto||'—'}${val.observaciones?`<p class="verdict-obs">${val.observaciones}</p>`:''}</div>`;
+}
+
+function loadDemo() {
+  document.getElementById('jd').value = `PUESTO: Analista de Datos Sr. — Business Intelligence | TechCorp S.A. (fintech, CABA)
+
+REQUISITOS EXCLUYENTES:
+- 3+ años de experiencia en análisis de datos
+- SQL avanzado (subqueries, joins, CTEs)
+- Python para análisis (pandas, numpy)
+- Power BI o Tableau
+
+REQUISITOS DESEABLES:
+- scikit-learn o conocimientos de ML
+- Experiencia en industria financiera o fintech
+- Inglés intermedio (B2)`;
+
+  document.getElementById('cv').value = `Lucía Fernández — Analista de Datos
+Cargo actual: Analista de Datos Sr. — Banco Meridian S.A. (2021–presente)
+
+Experiencia:
+2021–presente | Banco Meridian S.A.
+- Desarrollo de dashboards en Power BI para seguimiento de riesgo crediticio
+- Procesamiento de datos con Python (pandas) y SQL avanzado Oracle (CTEs, joins, subqueries)
+- Reporting mensual para gerencia de producto
+
+2019–2021 | DataSur Consultora
+- Visualizaciones en Tableau para clientes de retail
+- Análisis exploratorio con Python y Excel
+- Consultas SQL en PostgreSQL
+
+Educación:
+Lic. en Ciencias de Datos — UBA (2019)
+Certificación PL-300 Power BI — Microsoft (2022)
+
+Idiomas: Inglés B2 (certificado Cambridge)`;
+}
+</script>
+</body>
+</html>
