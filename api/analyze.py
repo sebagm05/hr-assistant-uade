@@ -1,7 +1,7 @@
 import json
 import os
 from http.server import BaseHTTPRequestHandler
-import anthropic
+from groq import Groq
 
 SYSTEM_PROMPT = """ROL: Eres un Asistente Experto en Adquisición de Talento y Evaluación Técnica.
 OBJETIVO: Analizar perfiles de manera estrictamente objetiva y libre de sesgos.
@@ -42,7 +42,7 @@ REGLA: evidencia_en_cv debe ser cita textual. Sin cita posible = no va en match_
 Output T2: {json.dumps(t2, ensure_ascii=False)}
 Ponderación: base 100, cada brecha_excluyente Crítica descuenta 20 pts, cada brecha_deseable Moderada descuenta 5 pts, bonus +5 por skills adicionales verificables en el CV. Mínimo 0.
 Devuelve SOLO este JSON exacto:
-{{"match_score": <número 0-100>, "recomendacion": "Avanzar a entrevista|Revisión manual|Descartar", "justificacion_score": "<máx 3 líneas>", "penalizaciones_aplicadas": [{{"requisito": "<string>", "descuento": <número>}}]}}"""
+{{"match_score": 0, "recomendacion": "Avanzar a entrevista|Revisión manual|Descartar", "justificacion_score": "<máx 3 líneas>", "penalizaciones_aplicadas": [{{"requisito": "<string>", "descuento": 0}}]}}"""
 
     elif step == "t4":
         t2 = ctx.get("t2", {})
@@ -53,7 +53,7 @@ Output T2: {json.dumps(t2, ensure_ascii=False)}
 Output T3: {json.dumps(t3, ensure_ascii=False)}
 Devuelve SOLO este JSON exacto:
 {{"preguntas": [{{"tipo": "Técnica", "pregunta": "<string>", "que_buscar": "<string>"}}, {{"tipo": "Brecha", "pregunta": "<string>", "que_buscar": "<string>"}}, {{"tipo": "Conductual STAR", "pregunta": "<string>", "que_buscar": "<string>"}}, {{"tipo": "Situacional", "pregunta": "<string>", "que_buscar": "<string>"}}]}}
-REGLA: Cada pregunta debe nombrar un logro o herramienta específica del CV. No preguntas genéricas."""
+REGLA: Cada pregunta debe nombrar un logro o herramienta específica del CV."""
 
     elif step == "val":
         t2 = ctx.get("t2", {})
@@ -63,7 +63,7 @@ REGLA: Cada pregunta debe nombrar un logro o herramienta específica del CV. No 
 CV original: {cv}
 Output T2: {json.dumps(t2, ensure_ascii=False)}
 Output T3: {json.dumps(t3, ensure_ascii=False)}
-Output T4: {json.dumps(t4, ensure_ascii=False) if t4 else "No aplica (candidato descartado)"}
+Output T4: {json.dumps(t4, ensure_ascii=False) if t4 else "No aplica"}
 Devuelve SOLO este JSON exacto:
 {{"control_1": "PASA|FALLA", "control_2": "PASA|FALLA", "control_3": "PASA|FALLA", "veredicto": "Validación exitosa. Listo para presentar al reclutador.|Requiere corrección.", "observaciones": "<máx 2 líneas>"}}"""
 
@@ -74,7 +74,7 @@ Devuelve SOLO este JSON exacto:
 class handler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
-        pass  # silencia logs de requests en consola
+        pass
 
     def send_json(self, status, data):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
@@ -93,35 +93,33 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        raw = ""
         try:
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length).decode("utf-8"))
-
             step = body.get("step")
             cv   = body.get("cv", "")
             jd   = body.get("jd", "")
             ctx  = body.get("ctx", {})
-
-            api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+            api_key = os.environ.get("GROQ_API_KEY", "")
             if not api_key:
-                self.send_json(500, {"error": "ANTHROPIC_API_KEY no configurada en las variables de entorno de Vercel."})
+                self.send_json(500, {"error": "GROQ_API_KEY no configurada en Vercel."})
                 return
-
-            client = anthropic.Anthropic(api_key=api_key)
+            client = Groq(api_key=api_key)
             prompt = build_prompt(step, cv, jd, ctx)
-
-            message = client.messages.create(
-                model="claude-sonnet-4-6",
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user",   "content": prompt}
+                ],
+                temperature=0,
                 max_tokens=1024,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}],
             )
-
-            raw  = message.content[0].text
+            raw = response.choices[0].message.content
             result = json.loads(clean_json(raw))
             self.send_json(200, result)
-
         except json.JSONDecodeError as e:
-            self.send_json(500, {"error": f"La IA no devolvió JSON válido: {str(e)}", "raw": raw if 'raw' in dir() else ""})
+            self.send_json(500, {"error": f"JSON inválido: {str(e)}", "raw": raw})
         except Exception as e:
             self.send_json(500, {"error": str(e)})
