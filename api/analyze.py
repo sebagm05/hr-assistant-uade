@@ -44,7 +44,11 @@ Reconocé equivalencias por sinónimo, subconjunto y campo relacionado. Ejemplos
 - "cuando un tema me apasiona me comprometo a fondo" CUBRE "compromiso y dedicación"
 - "colaboré con las áreas de desarrollo y marketing" CUBRE "trabajo en equipo multidisciplinario"
 Solo declarás una brecha si el requisito NO está cubierto de NINGUNA forma (ni literal, ni por sinónimo, ni por experiencia equivalente o más específica). Ante la duda entre brecha y match equivalente, elegí MATCH.
-CLASIFICACIÓN DE BRECHAS (crítico para un score estable): Un requisito va en brechas_excluyentes (severidad Crítica, -20) SOLO si el JD lo marca de forma EXPLÍCITA como excluyente / imprescindible / obligatorio / "requisito excluyente". Si el JD NO separa excluyentes (por ej. usa "Perfil deseado", "requisitos deseables", o una lista general de requisitos sin marcarlos como obligatorios), entonces TODA brecha va en brechas_deseables (severidad Moderada, -5). Ante la duda, la brecha es deseable, NUNCA excluyente. No inventes requisitos que el JD no menciona.
+CLASIFICACIÓN DE BRECHAS (regla general, aplica a CUALQUIER perfil):
+1) Fijate si el JD marca EXPLÍCITAMENTE requisitos como excluyentes (palabras "excluyente", "imprescindible", "obligatorio", o una sección titulada "Requisitos excluyentes").
+2) Si el JD NO los marca así (por ej. dice "Perfil deseado", "requisitos deseables", o una lista general sin marcarlos): brechas_excluyentes DEBE quedar como lista VACÍA []. TODA brecha va en brechas_deseables.
+3) Si el JD SÍ marca excluyentes: solo esos requisitos marcados pueden ir en brechas_excluyentes; el resto va en deseables.
+Ante la duda, la brecha es deseable, NUNCA excluyente. No inventes requisitos que el JD no menciona.
 REGLA: evidencia_en_cv debe ser cita textual del CV. Sin cita posible = no va en match_fuerte."""
 
     elif step == "t3":
@@ -89,6 +93,39 @@ Devuelve SOLO este JSON exacto:
         raise ValueError(f"Step desconocido: {step}")
 
 
+def compute_score(t2):
+    """Calcula el Match Score de forma DETERMINISTA en Python (no vía LLM).
+    Fórmula documentada: base 100, -20 por brecha excluyente, -5 por deseable, mínimo 0.
+    Al no depender del modelo, el score es reproducible e idéntico para todos los perfiles."""
+    exc = t2.get("brechas_excluyentes") or []
+    des = t2.get("brechas_deseables") or []
+    fuertes = t2.get("match_fuerte") or []
+    score = max(0, min(100, 100 - 20 * len(exc) - 5 * len(des)))
+    if score >= 70:
+        rec = "Avanzar a entrevista"
+    elif score >= 55:
+        rec = "Revisión manual"
+    else:
+        rec = "Descartar"
+    penal = ([{"requisito": b.get("requisito", ""), "descuento": 20} for b in exc]
+             + [{"requisito": b.get("requisito", ""), "descuento": 5} for b in des])
+    partes = [f"{len(fuertes)} coincidencia(s) fuerte(s)"]
+    if exc:
+        partes.append(f"{len(exc)} brecha(s) excluyente(s) (-20 c/u)")
+    if des:
+        partes.append(f"{len(des)} brecha(s) deseable(s) (-5 c/u)")
+    if not exc and not des:
+        partes.append("sin brechas")
+    justif = "Score = 100 - penalizaciones. " + "; ".join(partes) + "."
+    return {
+        "match_score": score,
+        "recomendacion": rec,
+        "umbral_aplicado": 70,
+        "justificacion_score": justif,
+        "penalizaciones_aplicadas": penal,
+    }
+
+
 def process(body):
     """Ejecuta un paso del pipeline. Recibe el body (dict) y devuelve (status, result).
     Separado del handler HTTP para poder testear igual en Vercel y en local."""
@@ -96,6 +133,9 @@ def process(body):
     cv   = body.get("cv", "")
     jd   = body.get("jd", "")
     ctx  = body.get("ctx", {})
+    # T3 (scoring) es 100% determinista: se calcula en Python desde T2, sin llamar al modelo.
+    if step == "t3":
+        return 200, compute_score(ctx.get("t2", {}))
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         return 500, {"error": "GROQ_API_KEY no configurada en Vercel."}
