@@ -15,6 +15,18 @@ TONO: Profesional, directo y corporativo.
 PROPÓSITO: Optimizar la toma de decisiones del reclutador humano, quien siempre tiene la decisión final."""
 
 
+# Modelo mixto: el 70b (calidad) solo donde importa; el 8b (mayor cupo, más rápido) en pasos mecánicos.
+MODEL_PRIMARY = "llama-3.3-70b-versatile"   # T2 matching y T4 entrevista: calidad
+MODEL_LIGHT   = "llama-3.1-8b-instant"      # T1 extracción y validación: mecánicos
+
+STEP_MODEL = {
+    "t1":  MODEL_LIGHT,
+    "t2":  MODEL_PRIMARY,
+    "t4":  MODEL_PRIMARY,
+    "val": MODEL_LIGHT,
+}
+
+
 def clean_json(text):
     return text.replace("```json", "").replace("```", "").strip()
 
@@ -144,7 +156,7 @@ def process(body):
         client = Groq(api_key=api_key)
         prompt = build_prompt(step, cv, jd, ctx)
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=STEP_MODEL.get(step, MODEL_PRIMARY),
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user",   "content": prompt}
