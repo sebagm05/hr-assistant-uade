@@ -1,0 +1,16 @@
+# Secretos y entorno local
+.env
+.env.local
+.vercel
+
+# Python
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+# Herramientas de desarrollo local (no van a producción)
+dev_server.py
+.claude/
+_local_tests/

@@ -34,15 +34,17 @@ Datos CV (output T1): {json.dumps(t1, ensure_ascii=False)}
 Job Description: {jd}
 Devuelve SOLO este JSON exacto:
 {{"match_fuerte": [{{"skill": "<string>", "evidencia_en_cv": "<cita textual del CV>"}}], "brechas_excluyentes": [{{"requisito": "<string>", "severidad": "Crítica", "presente_en_cv": false}}], "brechas_deseables": [{{"requisito": "<string>", "severidad": "Moderada", "presente_en_cv": false}}]}}
-REGLA: evidencia_en_cv debe ser cita textual. Sin cita posible = no va en match_fuerte."""
+MATCHING SEMÁNTICO (obligatorio): Compará por SIGNIFICADO, no solo por texto literal. Si el CV cumple un requisito del JD aunque esté escrito con otras palabras, va en match_fuerte, NO en brechas. Ejemplos de equivalencia válida: "Inglés técnico (lectura)" ≈ "Inglés técnico para leer documentación"; "JS" ≈ "JavaScript"; "BI" ≈ "Business Intelligence"; "consultas SQL con CTEs y joins" ≈ "SQL avanzado". Solo declarás una brecha si el requisito NO está cubierto ni de forma explícita ni equivalente.
+REGLA: evidencia_en_cv debe ser cita textual del CV. Sin cita posible = no va en match_fuerte."""
 
     elif step == "t3":
         t2 = ctx.get("t2", {})
         return f"""TAREA: Cálculo de Match Score.
 Output T2: {json.dumps(t2, ensure_ascii=False)}
 Ponderación: base 100, cada brecha_excluyente Crítica descuenta 20 pts, cada brecha_deseable Moderada descuenta 5 pts, bonus +5 por skills adicionales verificables en el CV. Mínimo 0.
+Umbrales de recomendación (aplicalos exactamente según el match_score calculado): score >= 70 -> "Avanzar a entrevista"; score entre 55 y 69 -> "Revisión manual"; score < 55 -> "Descartar".
 Devuelve SOLO este JSON exacto:
-{{"match_score": 0, "recomendacion": "Avanzar a entrevista|Revisión manual|Descartar", "justificacion_score": "<máx 3 líneas>", "penalizaciones_aplicadas": [{{"requisito": "<string>", "descuento": 0}}]}}"""
+{{"match_score": 0, "recomendacion": "Avanzar a entrevista|Revisión manual|Descartar", "umbral_aplicado": 70, "justificacion_score": "<máx 3 líneas>", "penalizaciones_aplicadas": [{{"requisito": "<string>", "descuento": 0}}]}}"""
 
     elif step == "t4":
         t2 = ctx.get("t2", {})
@@ -64,11 +66,48 @@ CV original: {cv}
 Output T2: {json.dumps(t2, ensure_ascii=False)}
 Output T3: {json.dumps(t3, ensure_ascii=False)}
 Output T4: {json.dumps(t4, ensure_ascii=False) if t4 else "No aplica"}
+Controles (PASA = sin problema, FALLA = se detectó el problema):
+- control_1: ¿Hay alguna skill en match_fuerte que NO esté escrita en el CV? (si la hay, FALLA)
+- control_2: ¿El score se basó en alguna suposición externa al texto del CV? (si la hay, FALLA)
+- control_3: ¿Todas las preguntas de entrevista referencian el CV? (si alguna es genérica, FALLA)
+- control_4: ¿Hay alguna brecha (excluyente o deseable) que en realidad SÍ figura en el CV con redacción distinta o equivalente? (si encontrás una brecha falsa, FALLA)
+Si algún control da FALLA, el veredicto debe ser "Requiere corrección." y explicá cuál en observaciones.
 Devuelve SOLO este JSON exacto:
-{{"control_1": "PASA|FALLA", "control_2": "PASA|FALLA", "control_3": "PASA|FALLA", "veredicto": "Validación exitosa. Listo para presentar al reclutador.|Requiere corrección.", "observaciones": "<máx 2 líneas>"}}"""
+{{"control_1": "PASA|FALLA", "control_2": "PASA|FALLA", "control_3": "PASA|FALLA", "control_4": "PASA|FALLA", "veredicto": "Validación exitosa. Listo para presentar al reclutador.|Requiere corrección.", "observaciones": "<máx 2 líneas>"}}"""
 
     else:
         raise ValueError(f"Step desconocido: {step}")
+
+
+def process(body):
+    """Ejecuta un paso del pipeline. Recibe el body (dict) y devuelve (status, result).
+    Separado del handler HTTP para poder testear igual en Vercel y en local."""
+    step = body.get("step")
+    cv   = body.get("cv", "")
+    jd   = body.get("jd", "")
+    ctx  = body.get("ctx", {})
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key:
+        return 500, {"error": "GROQ_API_KEY no configurada en Vercel."}
+    raw = ""
+    try:
+        client = Groq(api_key=api_key)
+        prompt = build_prompt(step, cv, jd, ctx)
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user",   "content": prompt}
+            ],
+            temperature=0,
+            max_tokens=1024,
+        )
+        raw = response.choices[0].message.content
+        return 200, json.loads(clean_json(raw))
+    except json.JSONDecodeError as e:
+        return 500, {"error": f"JSON inválido: {str(e)}", "raw": raw}
+    except Exception as e:
+        return 500, {"error": str(e)}
 
 
 class handler(BaseHTTPRequestHandler):
@@ -93,33 +132,10 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        raw = ""
         try:
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length).decode("utf-8"))
-            step = body.get("step")
-            cv   = body.get("cv", "")
-            jd   = body.get("jd", "")
-            ctx  = body.get("ctx", {})
-            api_key = os.environ.get("GROQ_API_KEY", "")
-            if not api_key:
-                self.send_json(500, {"error": "GROQ_API_KEY no configurada en Vercel."})
-                return
-            client = Groq(api_key=api_key)
-            prompt = build_prompt(step, cv, jd, ctx)
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user",   "content": prompt}
-                ],
-                temperature=0,
-                max_tokens=1024,
-            )
-            raw = response.choices[0].message.content
-            result = json.loads(clean_json(raw))
-            self.send_json(200, result)
-        except json.JSONDecodeError as e:
-            self.send_json(500, {"error": f"JSON inválido: {str(e)}", "raw": raw})
+            status, result = process(body)
+            self.send_json(status, result)
         except Exception as e:
             self.send_json(500, {"error": str(e)})

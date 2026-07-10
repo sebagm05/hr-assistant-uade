@@ -84,6 +84,16 @@
   textarea:focus { border-color: var(--blue); background: white; }
   textarea::placeholder { color: var(--text3); }
 
+  .upload-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .btn-upload {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    font-size: 12px; font-weight: 600; color: var(--blue);
+    background: var(--blue-l); border: 1px solid var(--blue-b);
+    padding: 6px 12px; border-radius: 8px; transition: all .15s;
+  }
+  .btn-upload:hover { background: #DBEAFE; }
+  .upload-status { font-size: 12px; color: var(--text2); }
+
   .actions { display: flex; align-items: center; gap: 10px; margin: 14px 0; }
 
   button {
@@ -175,7 +185,7 @@
   .q-buscar { font-size: 12px; color: var(--text2); line-height: 1.5; }
   .q-buscar strong { color: var(--text2); }
 
-  .val-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .val-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
   .val-item {
     border: 1px solid var(--border); border-radius: 8px;
     padding: 12px; text-align: center;
@@ -225,6 +235,13 @@
         Descripción del puesto (JD)
       </p>
       <textarea id="jd" placeholder="Pegá aquí el Job Description completo con requisitos excluyentes y deseables..."></textarea>
+      <div class="upload-row">
+        <label class="btn-upload">
+          <input type="file" accept=".pdf,.docx,.txt" onchange="handleFile(this,'jd')" hidden>
+          📎 Subir PDF / DOCX
+        </label>
+        <span class="upload-status" id="jd-status"></span>
+      </div>
     </div>
     <div class="card">
       <p class="section-label">
@@ -232,6 +249,13 @@
         Currículum del candidato (CV)
       </p>
       <textarea id="cv" placeholder="Pegá aquí el texto completo del CV..."></textarea>
+      <div class="upload-row">
+        <label class="btn-upload">
+          <input type="file" accept=".pdf,.docx,.txt" onchange="handleFile(this,'cv')" hidden>
+          📎 Subir PDF / DOCX
+        </label>
+        <span class="upload-status" id="cv-status"></span>
+      </div>
     </div>
   </div>
 
@@ -337,6 +361,42 @@
 
 <script>
 const API = '/api/analyze';
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+async function handleFile(input, target) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById(target + '-status');
+  status.style.color = 'var(--text2)';
+  status.textContent = 'Extrayendo texto de ' + file.name + '…';
+  try {
+    const dataUrl = await fileToBase64(file);
+    const r = await fetch('/api/extract', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ filename: file.name, data: dataUrl })
+    });
+    const res = await r.json();
+    if (res.error) throw new Error(res.error);
+    if (res.warning) { status.style.color = 'var(--amber)'; status.textContent = '⚠ ' + res.warning; return; }
+    document.getElementById(target).value = res.text;
+    status.style.color = 'var(--green)';
+    status.textContent = '✓ ' + file.name + ' — ' + res.chars + ' caracteres';
+  } catch (e) {
+    status.style.color = 'var(--red)';
+    status.textContent = '✗ ' + e.message;
+  } finally {
+    input.value = '';
+  }
+}
 
 async function step(stepName, cv, jd, ctx) {
   const r = await fetch(API, {
@@ -486,7 +546,7 @@ function renderResults(t1, t2, t3, t4, val) {
 
   const vc = document.getElementById('val-controls');
   vc.innerHTML = '';
-  [{k:'control_1',l:'Match sin inferencias'},{k:'control_2',l:'Score sin suposiciones'},{k:'control_3',l:'Preguntas referencian CV'}].forEach(c => {
+  [{k:'control_1',l:'Match sin inferencias'},{k:'control_2',l:'Score sin suposiciones'},{k:'control_3',l:'Preguntas referencian CV'},{k:'control_4',l:'Brechas sin falsos negativos'}].forEach(c => {
     const ok = val[c.k] === 'PASA';
     const d = document.createElement('div'); d.className = 'val-item';
     d.innerHTML = `<div class="val-icon">${ok?'🛡️':'⚠️'}</div><p class="val-label">${c.l}</p><p class="val-status ${ok?'pasa':'falla'}">${val[c.k]}</p>`;
