@@ -30,16 +30,19 @@ REGLA: Incluye solo lo que esté escrito literalmente en el CV. No inferas."""
     elif step == "t2":
         t1 = ctx.get("t1", {})
         return f"""TAREA: Análisis de Brechas y Match entre CV y Job Description.
-Datos CV (output T1): {json.dumps(t1, ensure_ascii=False)}
+CV completo (texto original del candidato): {cv}
+Datos estructurados del CV (output T1): {json.dumps(t1, ensure_ascii=False)}
 Job Description: {jd}
 Devuelve SOLO este JSON exacto:
 {{"match_fuerte": [{{"skill": "<string>", "evidencia_en_cv": "<cita textual del CV>"}}], "brechas_excluyentes": [{{"requisito": "<string>", "severidad": "Crítica", "presente_en_cv": false}}], "brechas_deseables": [{{"requisito": "<string>", "severidad": "Moderada", "presente_en_cv": false}}]}}
-MATCHING SEMÁNTICO (obligatorio): Evaluá cada requisito del JD por SIGNIFICADO, no por coincidencia de palabras. Para CADA requisito preguntate: ¿el CV muestra ese conocimiento con otra redacción, un sinónimo, un término más específico, o una experiencia que lo engloba? Si la respuesta es sí, va en match_fuerte (con la cita), NUNCA en brechas.
+MATCHING SEMÁNTICO (obligatorio): Evaluá cada requisito del JD por SIGNIFICADO, no por coincidencia de palabras. Buscá la evidencia en TODO el texto original del CV (perfil profesional, experiencia y descripciones narrativas), no solo en la lista de skills estructurada. Aplica también a habilidades BLANDAS y ACTITUDINALES (liderazgo, compromiso, trabajo en equipo, curiosidad), que suelen estar escritas en prosa. Para CADA requisito preguntate: ¿el CV muestra eso con otra redacción, un sinónimo, un término más específico, o una experiencia/frase que lo describe? Si la respuesta es sí, va en match_fuerte (con la cita textual del CV), NUNCA en brechas.
 Reconocé equivalencias por sinónimo, subconjunto y campo relacionado. Ejemplos entre áreas:
 - "marketing digital" o "campañas en Google Ads y Meta" CUBREN "estrategias de marketing"
 - "consultas SQL con CTEs, joins y subqueries" CUBRE "SQL avanzado"
 - "React" o "Vue" CUBREN "desarrollo frontend"; "inglés B2" CUBRE "inglés intermedio"
 - "análisis de estados contables" CUBRE "análisis financiero"
+- "cuando un tema me apasiona me comprometo a fondo" CUBRE "compromiso y dedicación"
+- "colaboré con las áreas de desarrollo y marketing" CUBRE "trabajo en equipo multidisciplinario"
 Solo declarás una brecha si el requisito NO está cubierto de NINGUNA forma (ni literal, ni por sinónimo, ni por experiencia equivalente o más específica). Ante la duda entre brecha y match equivalente, elegí MATCH.
 CLASIFICACIÓN DE BRECHAS (crítico para un score estable): Un requisito va en brechas_excluyentes (severidad Crítica, -20) SOLO si el JD lo marca de forma EXPLÍCITA como excluyente / imprescindible / obligatorio / "requisito excluyente". Si el JD NO separa excluyentes (por ej. usa "Perfil deseado", "requisitos deseables", o una lista general de requisitos sin marcarlos como obligatorios), entonces TODA brecha va en brechas_deseables (severidad Moderada, -5). Ante la duda, la brecha es deseable, NUNCA excluyente. No inventes requisitos que el JD no menciona.
 REGLA: evidencia_en_cv debe ser cita textual del CV. Sin cita posible = no va en match_fuerte."""
