@@ -94,6 +94,35 @@
   .btn-upload:hover { background: #DBEAFE; }
   .upload-status { font-size: 12px; color: var(--text2); }
 
+  .cv-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .cv-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; background: var(--gray-l); border: 1px solid var(--border);
+    color: var(--text); padding: 5px 8px 5px 10px; border-radius: 8px;
+  }
+  .cv-chip button {
+    all: unset; cursor: pointer; color: var(--text3); font-weight: 700;
+    padding: 0 2px; line-height: 1; font-size: 13px;
+  }
+  .cv-chip button:hover { color: var(--red); }
+
+  .batch-progress { font-size: 13px; color: var(--blue); font-weight: 600; margin: 10px 0; text-align: center; }
+
+  .table-wrap { overflow-x: auto; }
+  .cand-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .cand-table th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .4px;
+    color: var(--text3); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border);
+  }
+  .cand-table td { padding: 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .cand-table tbody tr { cursor: pointer; transition: background .15s; }
+  .cand-table tbody tr:hover { background: var(--gray-l); }
+  .cand-table tbody tr.selected { background: var(--blue-l); }
+  .cand-score { font-weight: 700; }
+  .cand-name { font-weight: 600; color: var(--text); white-space: normal; }
+  .cand-flag-green { color: var(--green); font-weight: 600; }
+  .cand-flag-red { color: var(--red); font-weight: 600; }
+
   .actions { display: flex; align-items: center; gap: 10px; margin: 14px 0; }
 
   button {
@@ -222,7 +251,7 @@
     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
   </div>
   <h1>Asistente de Selección y Entrevistas</h1>
-  <span>UADE · IA Aplicada · Pipeline anti-alucinación v2</span>
+  <span>UADE · IA Aplicada · Pipeline anti-alucinación v3</span>
 </header>
 
 <div class="container">
@@ -246,23 +275,24 @@
     <div class="card">
       <p class="section-label">
         <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        Currículum del candidato (CV)
+        Currículum(s) del candidato(s)
       </p>
-      <textarea id="cv" placeholder="Pegá aquí el texto completo del CV..."></textarea>
+      <textarea id="cv" placeholder="Pegá un CV acá, o subí uno o varios archivos abajo…"></textarea>
       <div class="upload-row">
         <label class="btn-upload">
-          <input type="file" accept=".pdf,.docx,.txt" onchange="handleFile(this,'cv')" hidden>
-          📎 Subir PDF / DOCX
+          <input type="file" accept=".pdf,.docx,.txt" multiple onchange="handleCVFiles(this)" hidden>
+          📎 Subir CV(s) — PDF/DOCX (uno o varios)
         </label>
         <span class="upload-status" id="cv-status"></span>
       </div>
+      <div class="cv-list" id="cv-list"></div>
     </div>
   </div>
 
   <div class="actions">
     <button class="btn-primary" id="btn-run" onclick="runPipeline()">
       <svg class="icon" viewBox="0 0 24 24" style="fill:white;stroke:none"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm1 14.5v-9l6 4.5-6 4.5z"/></svg>
-      Analizar candidato
+      Analizar candidato(s)
     </button>
     <button class="btn-secondary" id="btn-demo" onclick="loadDemo()">✦ Cargar demo</button>
     <span class="error-msg" id="err"></span>
@@ -294,6 +324,20 @@
       <div class="step-dot" id="s5">⑤</div>
       <span class="step-lbl" id="l5">Validación</span>
     </div>
+  </div>
+
+  <div class="batch-progress" id="batch-progress" style="display:none"></div>
+
+  <!-- Tabla de candidatos (batch) -->
+  <div id="candidates-section" class="card" style="display:none;margin-bottom:14px">
+    <p class="section-label">Candidatos evaluados <span id="cand-count" style="color:var(--text2)"></span></p>
+    <div class="table-wrap">
+      <table class="cand-table">
+        <thead><tr><th>#</th><th>Candidato</th><th>Score</th><th>Recomendación</th><th>Fortalezas</th><th>Brechas</th></tr></thead>
+        <tbody id="cand-tbody"></tbody>
+      </table>
+    </div>
+    <p style="font-size:12px;color:var(--text3);margin-top:10px">Hacé clic en un candidato para ver su análisis completo.</p>
   </div>
 
   <!-- Results -->
@@ -354,7 +398,7 @@
 
   <footer>
     TPO — Asistente de Selección y Entrevistas · UADE IA Aplicada ·
-    Pipeline de 5 capas · Política de cero alucinación v2
+    Pipeline de 5 capas · Política de cero alucinación v3
   </footer>
 
 </div>
@@ -436,47 +480,140 @@ function setStep(n, done) {
   }
 }
 
+let batchCVs = [];
+let candidates = [];
+
+async function handleCVFiles(input) {
+  const status = document.getElementById('cv-status');
+  const files = Array.from(input.files || []);
+  for (const file of files) {
+    status.style.color = 'var(--text2)';
+    status.textContent = 'Extrayendo ' + file.name + '…';
+    try {
+      const dataUrl = await fileToBase64(file);
+      const r = await fetch('/api/extract', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ filename: file.name, data: dataUrl })
+      });
+      const res = await r.json();
+      if (res.error) throw new Error(res.error);
+      if (!res.text) { status.style.color = 'var(--amber)'; status.textContent = '⚠ ' + file.name + ': ' + (res.warning || 'sin texto'); continue; }
+      batchCVs.push({ name: file.name, text: res.text });
+    } catch (e) {
+      status.style.color = 'var(--red)'; status.textContent = '✗ ' + file.name + ': ' + e.message;
+    }
+  }
+  input.value = '';
+  renderCVList();
+  if (batchCVs.length) { status.style.color = 'var(--green)'; status.textContent = '✓ ' + batchCVs.length + ' CV(s) cargado(s)'; }
+}
+
+function renderCVList() {
+  const list = document.getElementById('cv-list');
+  list.innerHTML = '';
+  batchCVs.forEach((c, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'cv-chip';
+    chip.textContent = '📄 ' + c.name + ' ';
+    const btn = document.createElement('button');
+    btn.title = 'Quitar'; btn.textContent = '✕';
+    btn.onclick = () => removeCV(i);
+    chip.appendChild(btn);
+    list.appendChild(chip);
+  });
+}
+
+function removeCV(i) { batchCVs.splice(i, 1); renderCVList(); }
+
+async function analyzeCV(cv, jd) {
+  setStep(1, false); const t1 = await step('t1', cv, jd, {});
+  setStep(2, false); const t2 = await step('t2', cv, jd, { t1 });
+  setStep(3, false); const t3 = await step('t3', cv, jd, { t2 });
+  setStep(4, false); let t4 = null;
+  if (t3.match_score >= 55) t4 = await step('t4', cv, jd, { t2, t3 });
+  setStep(5, false); const val = await step('val', cv, jd, { t2, t3, t4 });
+  setStep(5, true);
+  return { t1, t2, t3, t4, val };
+}
+
 async function runPipeline() {
   const jd = document.getElementById('jd').value.trim();
-  const cv = document.getElementById('cv').value.trim();
   const err = document.getElementById('err');
   err.textContent = '';
-  if (!jd || !cv) { err.textContent = 'Completá ambos campos.'; return; }
+
+  let toProcess = batchCVs.slice();
+  if (!toProcess.length) {
+    const cv = document.getElementById('cv').value.trim();
+    if (cv) toProcess = [{ name: 'CV pegado', text: cv }];
+  }
+  if (!jd) { err.textContent = 'Cargá la descripción del puesto (JD).'; return; }
+  if (!toProcess.length) { err.textContent = 'Cargá al menos un CV (pegado o archivo).'; return; }
 
   document.getElementById('results').style.display = 'none';
+  document.getElementById('candidates-section').style.display = 'none';
   document.getElementById('pipeline').classList.add('visible');
+  const bp = document.getElementById('batch-progress');
   document.getElementById('btn-run').disabled = true;
   document.getElementById('btn-demo').disabled = true;
 
+  candidates = [];
   try {
-    setStep(1, false);
-    const t1 = await step('t1', cv, jd, {});
-
-    setStep(2, false);
-    const t2 = await step('t2', cv, jd, { t1 });
-
-    setStep(3, false);
-    const t3 = await step('t3', cv, jd, { t2 });
-
-    setStep(4, false);
-    let t4 = null;
-    if (t3.match_score >= 55) t4 = await step('t4', cv, jd, { t2, t3 });
-
-    setStep(5, false);
-    const val = await step('val', cv, jd, { t2, t3, t4 });
-
-    setStep(5, true);
-    renderResults(t1, t2, t3, t4, val);
-    document.getElementById('results').style.display = 'block';
+    for (let i = 0; i < toProcess.length; i++) {
+      if (toProcess.length > 1) {
+        bp.style.display = 'block';
+        bp.textContent = 'Analizando candidato ' + (i + 1) + ' de ' + toProcess.length + ' — ' + toProcess[i].name;
+      }
+      const r = await analyzeCV(toProcess[i].text, jd);
+      candidates.push({ name: toProcess[i].name, ...r, score: Math.round((r.t3 && r.t3.match_score) || 0) });
+    }
+    candidates.sort((a, b) => b.score - a.score);
     document.getElementById('pipeline').classList.remove('visible');
-
-  } catch(e) {
+    bp.style.display = 'none';
+    renderCandidatesTable();
+    document.getElementById('candidates-section').style.display = 'block';
+    if (candidates.length === 1) selectCandidate(0);
+    else document.getElementById('candidates-section').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) {
     err.textContent = 'Error: ' + e.message;
     document.getElementById('pipeline').classList.remove('visible');
+    bp.style.display = 'none';
   }
 
   document.getElementById('btn-run').disabled = false;
   document.getElementById('btn-demo').disabled = false;
+}
+
+function recClass(score) { return score >= 70 ? 'badge-green' : score >= 55 ? 'badge-amber' : 'badge-red'; }
+function scoreColor(score) { return score >= 70 ? '#059669' : score >= 55 ? '#D97706' : '#DC2626'; }
+
+function renderCandidatesTable() {
+  document.getElementById('cand-count').textContent = '(' + candidates.length + ')';
+  const tb = document.getElementById('cand-tbody');
+  tb.innerHTML = '';
+  candidates.forEach((c, i) => {
+    const exc = ((c.t2 && c.t2.brechas_excluyentes) || []).length;
+    const des = ((c.t2 && c.t2.brechas_deseables) || []).length;
+    const fort = ((c.t2 && c.t2.match_fuerte) || []).length;
+    const rec = (c.t3 && c.t3.recomendacion) || '—';
+    const tr = document.createElement('tr');
+    tr.onclick = () => selectCandidate(i);
+    tr.innerHTML =
+      '<td>' + (i + 1) + '</td>' +
+      '<td class="cand-name">' + c.name + '</td>' +
+      '<td class="cand-score" style="color:' + scoreColor(c.score) + '">' + c.score + '%</td>' +
+      '<td><span class="badge ' + recClass(c.score) + '">' + rec + '</span></td>' +
+      '<td class="cand-flag-green">' + fort + ' ✓</td>' +
+      '<td class="cand-flag-red">' + (exc + des) + ' ⚠</td>';
+    tb.appendChild(tr);
+  });
+}
+
+function selectCandidate(i) {
+  const c = candidates[i];
+  renderResults(c.t1, c.t2, c.t3, c.t4, c.val);
+  document.getElementById('results').style.display = 'block';
+  document.querySelectorAll('#cand-tbody tr').forEach((tr, idx) => tr.classList.toggle('selected', idx === i));
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
 }
 
 function renderResults(t1, t2, t3, t4, val) {
