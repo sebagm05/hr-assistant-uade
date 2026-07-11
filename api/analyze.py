@@ -1,7 +1,15 @@
 import json
 import os
+import sys
 from http.server import BaseHTTPRequestHandler
 from groq import Groq
+
+# Base de conocimiento (RAG-lite). Se importa de forma tolerante para no romper si falta.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    from knowledge_base import retrieve
+except Exception:
+    retrieve = None
 
 SYSTEM_PROMPT = """ROL: Eres un Asistente Experto en Adquisición de Talento y Evaluación Técnica.
 OBJETIVO: Analizar perfiles de manera estrictamente objetiva y libre de sesgos.
@@ -63,22 +71,21 @@ CLASIFICACIÓN DE BRECHAS (regla general, aplica a CUALQUIER perfil):
 Ante la duda, la brecha es deseable, NUNCA excluyente. No inventes requisitos que el JD no menciona.
 REGLA: evidencia_en_cv debe ser cita textual del CV. Sin cita posible = no va en match_fuerte."""
 
-    elif step == "t3":
-        t2 = ctx.get("t2", {})
-        return f"""TAREA: Cálculo de Match Score.
-Output T2: {json.dumps(t2, ensure_ascii=False)}
-Ponderación: base 100, cada brecha_excluyente Crítica descuenta 20 pts, cada brecha_deseable Moderada descuenta 5 pts, bonus +5 por skills adicionales verificables en el CV. Mínimo 0.
-Umbrales de recomendación (aplicalos exactamente según el match_score calculado): score >= 70 -> "Avanzar a entrevista"; score entre 55 y 69 -> "Revisión manual"; score < 55 -> "Descartar".
-Devuelve SOLO este JSON exacto:
-{{"match_score": 0, "recomendacion": "Avanzar a entrevista|Revisión manual|Descartar", "umbral_aplicado": 70, "justificacion_score": "<máx 3 líneas>", "penalizaciones_aplicadas": [{{"requisito": "<string>", "descuento": 0}}]}}"""
+    # step "t3" (Match Score) NO usa el modelo: se calcula de forma determinista en compute_score().
 
     elif step == "t4":
         t2 = ctx.get("t2", {})
         t3 = ctx.get("t3", {})
+        kb = ctx.get("kb") or []
+        kb_block = ""
+        if kb:
+            refs = " | ".join(f'{d["id"]}: {d["texto"]}' for d in kb)
+            kb_block = ("\nCONTEXTO DE REFERENCIA (base de conocimiento del sistema, para inspirar preguntas "
+                        "propias del rol; NO inventes experiencia que el candidato no tenga): " + refs)
         return f"""TAREA: Diseño de Guía de Entrevista Personalizada.
 CV: {cv}
 Output T2: {json.dumps(t2, ensure_ascii=False)}
-Output T3: {json.dumps(t3, ensure_ascii=False)}
+Output T3: {json.dumps(t3, ensure_ascii=False)}{kb_block}
 Devuelve SOLO este JSON exacto:
 {{"preguntas": [{{"tipo": "Técnica", "pregunta": "<string>", "que_buscar": "<string>"}}, {{"tipo": "Brecha", "pregunta": "<string>", "que_buscar": "<string>"}}, {{"tipo": "Conductual STAR", "pregunta": "<string>", "que_buscar": "<string>"}}, {{"tipo": "Situacional", "pregunta": "<string>", "que_buscar": "<string>"}}]}}
 REGLA: Cada pregunta debe nombrar un logro o herramienta específica del CV."""
@@ -154,6 +161,9 @@ def process(body):
     raw = ""
     try:
         client = Groq(api_key=api_key)
+        # RAG-lite: para la guía de entrevista (T4), recupera bancos de preguntas / referencias del rol.
+        if step == "t4" and retrieve is not None:
+            ctx = {**ctx, "kb": retrieve(jd, k=2)}
         prompt = build_prompt(step, cv, jd, ctx)
         response = client.chat.completions.create(
             model=STEP_MODEL.get(step, MODEL_PRIMARY),
