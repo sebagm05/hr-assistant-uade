@@ -543,7 +543,10 @@ async function analyzeCV(cv, jd) {
   setStep(2, false); const t2 = await step('t2', cv, jd, { t1 });
   setStep(3, false); const t3 = await step('t3', cv, jd, { t2 });
   setStep(4, false); let t4 = null;
-  if (t3.match_score >= 55) t4 = await step('t4', cv, jd, { t2, t3 });
+  if (t3.match_score >= 55) {
+    try { t4 = await step('t4', cv, jd, { t2, t3 }); }
+    catch (e) { t4 = null; }  // la guía es opcional: si falla (p.ej. cupo), no aborta el candidato
+  }
   setStep(5, false); const val = await step('val', cv, jd, { t2, t3, t4 });
   setStep(5, true);
   return { t1, t2, t3, t4, val };
@@ -723,10 +726,15 @@ function renderResults(t1, t2, t3, t4, val) {
     const colors = ['badge-blue', 'badge-red', 'badge-green', 'badge-amber'];
     t4.preguntas.forEach((p, i) => {
       const d = document.createElement('div'); d.className = 'q-card';
-      d.innerHTML = `<div class="q-type"><span class="badge ${colors[i]}">${p.tipo}</span></div><p class="q-text">${p.pregunta}</p><p class="q-buscar"><strong>Qué buscar:</strong> ${p.que_buscar}</p>`;
+      d.innerHTML = `<div class="q-type"><span class="badge ${colors[i % colors.length]}">${p.tipo}</span></div><p class="q-text">${p.pregunta}</p><p class="q-buscar"><strong>Qué buscar:</strong> ${p.que_buscar}</p>`;
       ql.appendChild(d);
     });
-  } else { ic.style.display = 'none'; }
+  } else if (score >= 55) {
+    ic.style.display = 'block';
+    ql.innerHTML = '<p style="font-size:13px;color:#6B7280">Guía de entrevista no disponible en esta corrida (puede deberse al límite de tokens de la API). Reintentá el análisis de este candidato.</p>';
+  } else {
+    ic.style.display = 'none';
+  }
 
   const vc = document.getElementById('val-controls');
   vc.innerHTML = '';

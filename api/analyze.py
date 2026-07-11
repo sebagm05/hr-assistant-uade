@@ -184,9 +184,6 @@ def process(body):
     if not api_key:
         return 500, {"error": "GROQ_API_KEY no configurada en Vercel."}
     client = Groq(api_key=api_key)
-    # RAG-lite: para la guía de entrevista (T4), recupera bancos de preguntas / referencias del rol.
-    if step == "t4" and retrieve is not None:
-        ctx = {**ctx, "kb": retrieve(jd, k=2)}
     prompt = build_prompt(step, cv, jd, ctx)
     model = STEP_MODEL.get(step, MODEL_PRIMARY)
 
