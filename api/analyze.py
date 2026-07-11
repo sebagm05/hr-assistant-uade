@@ -145,6 +145,31 @@ def compute_score(t2):
     }
 
 
+def flag_short_cv(cv, t1):
+    """Caso borde: CV muy corto (<100 palabras) -> baja confianza y aviso explícito."""
+    if isinstance(t1, dict) and len(cv.split()) < 100:
+        t1["confianza_extraccion"] = "Baja"
+        t1["aviso"] = ("Perfil con información insuficiente (CV muy corto). "
+                       "El análisis puede tener baja confianza.")
+    return t1
+
+
+def audit_log(val):
+    """Clasifica el tipo de falla de la validación y lo registra (log de auditoría)."""
+    if not isinstance(val, dict):
+        return val
+    fallidos = [c for c in ("control_1", "control_2", "control_3", "control_4")
+                if val.get(c) == "FALLA"]
+    if fallidos:
+        # control_4 = omisión indebida (falso negativo); resto = sobre-inferencia (falso positivo)
+        val["tipo_de_falla"] = "omision_indebida" if "control_4" in fallidos else "sobre-inferencia"
+        val["controles_fallidos"] = fallidos
+        print(f"[AUDITORIA] Requiere corrección | tipo_de_falla={val['tipo_de_falla']} | controles={fallidos}")
+    else:
+        val["tipo_de_falla"] = None
+    return val
+
+
 def process(body):
     """Ejecuta un paso del pipeline. Recibe el body (dict) y devuelve (status, result).
     Separado del handler HTTP para poder testear igual en Vercel y en local."""
@@ -158,29 +183,45 @@ def process(body):
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         return 500, {"error": "GROQ_API_KEY no configurada en Vercel."}
+    client = Groq(api_key=api_key)
+    # RAG-lite: para la guía de entrevista (T4), recupera bancos de preguntas / referencias del rol.
+    if step == "t4" and retrieve is not None:
+        ctx = {**ctx, "kb": retrieve(jd, k=2)}
+    prompt = build_prompt(step, cv, jd, ctx)
+    model = STEP_MODEL.get(step, MODEL_PRIMARY)
+
     raw = ""
-    try:
-        client = Groq(api_key=api_key)
-        # RAG-lite: para la guía de entrevista (T4), recupera bancos de preguntas / referencias del rol.
-        if step == "t4" and retrieve is not None:
-            ctx = {**ctx, "kb": retrieve(jd, k=2)}
-        prompt = build_prompt(step, cv, jd, ctx)
-        response = client.chat.completions.create(
-            model=STEP_MODEL.get(step, MODEL_PRIMARY),
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": prompt}
-            ],
-            temperature=0,
-            seed=42,
-            max_tokens=1024,
-        )
-        raw = response.choices[0].message.content
-        return 200, json.loads(clean_json(raw))
-    except json.JSONDecodeError as e:
-        return 500, {"error": f"JSON inválido: {str(e)}", "raw": raw}
-    except Exception as e:
-        return 500, {"error": str(e)}
+    last = {"error": "Análisis no disponible temporalmente. Intente nuevamente."}
+    # Manejo de errores: hasta 2 reintentos ante fallo del modelo o JSON inválido.
+    for intento in range(3):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user",   "content": prompt}
+                ],
+                temperature=0,
+                seed=42,
+                max_tokens=1024,
+            )
+            raw = response.choices[0].message.content
+            result = json.loads(clean_json(raw))
+            if step == "t1":
+                result = flag_short_cv(cv, result)
+            elif step == "val":
+                result = audit_log(result)
+            return 200, result
+        except json.JSONDecodeError as e:
+            last = {"error": f"La IA no devolvió JSON válido: {str(e)}", "raw": raw}
+            continue
+        except Exception as e:
+            msg = str(e)
+            last = {"error": msg}
+            if "rate_limit" in msg.lower() or "429" in msg:
+                break  # cupo agotado: reintentar no ayuda
+            continue
+    return 500, last
 
 
 class handler(BaseHTTPRequestHandler):

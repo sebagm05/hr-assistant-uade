@@ -684,6 +684,10 @@ function renderResults(t1, t2, t3, t4, val) {
   const cel = document.getElementById('p-conf');
   cel.textContent = conf;
   cel.style.color = conf === 'Alta' ? '#059669' : conf === 'Media' ? '#D97706' : '#DC2626';
+  if (t1.aviso) {
+    const sj = document.getElementById('score-just');
+    sj.textContent = (sj.textContent ? sj.textContent + '  ' : '') + '⚠ ' + t1.aviso;
+  }
 
   const sc = document.getElementById('p-skills');
   sc.innerHTML = '';
@@ -736,7 +740,8 @@ function renderResults(t1, t2, t3, t4, val) {
   const vv = document.getElementById('val-verdict');
   const ok = val.veredicto && val.veredicto.includes('exitosa');
   vv.className = 'verdict ' + (ok ? 'ok' : 'fail');
-  vv.innerHTML = `<span style="font-size:18px">${ok?'✅':'❌'}</span><div>${val.veredicto||'—'}${val.observaciones?`<p class="verdict-obs">${val.observaciones}</p>`:''}</div>`;
+  const falla = (!ok && val.tipo_de_falla) ? `<p class="verdict-obs">Tipo de falla: <strong>${val.tipo_de_falla}</strong> — registrada en el log de auditoría y derivada a revisión humana obligatoria.</p>` : '';
+  vv.innerHTML = `<span style="font-size:18px">${ok?'✅':'❌'}</span><div>${val.veredicto||'—'}${val.observaciones?`<p class="verdict-obs">${val.observaciones}</p>`:''}${falla}</div>`;
 }
 
 function loadDemo() {
