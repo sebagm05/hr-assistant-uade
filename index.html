@@ -300,7 +300,8 @@
       <svg class="icon" viewBox="0 0 24 24" style="fill:white;stroke:none"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm1 14.5v-9l6 4.5-6 4.5z"/></svg>
       Analizar candidato(s)
     </button>
-    <button class="btn-secondary" id="btn-demo" onclick="loadDemo()">✦ Cargar demo</button>
+    <button class="btn-secondary" id="btn-demo1" onclick="loadDemo1()">▶ Demo 1 · Ranking</button>
+    <button class="btn-secondary" id="btn-demo2" onclick="loadDemo2()">★ Demo 2 · Semántico</button>
     <span class="error-msg" id="err"></span>
   </div>
 
@@ -572,7 +573,8 @@ async function runPipeline() {
   document.getElementById('pipeline').classList.add('visible');
   const bp = document.getElementById('batch-progress');
   document.getElementById('btn-run').disabled = true;
-  document.getElementById('btn-demo').disabled = true;
+  document.getElementById('btn-demo1').disabled = true;
+  document.getElementById('btn-demo2').disabled = true;
 
   candidates = [];
   try {
@@ -598,7 +600,8 @@ async function runPipeline() {
   }
 
   document.getElementById('btn-run').disabled = false;
-  document.getElementById('btn-demo').disabled = false;
+  document.getElementById('btn-demo1').disabled = false;
+  document.getElementById('btn-demo2').disabled = false;
 }
 
 function recClass(score) { return score >= 70 ? 'badge-green' : score >= 55 ? 'badge-amber' : 'badge-red'; }
@@ -752,39 +755,106 @@ function renderResults(t1, t2, t3, t4, val) {
   vv.innerHTML = `<span style="font-size:18px">${ok?'✅':'❌'}</span><div>${val.veredicto||'—'}${val.observaciones?`<p class="verdict-obs">${val.observaciones}</p>`:''}${falla}</div>`;
 }
 
-function loadDemo() {
-  document.getElementById('jd').value = `PUESTO: Analista de Datos Sr. — Business Intelligence | TechCorp S.A. (fintech, CABA)
+const DEMO = {
+  rrhh_jd: `Analista de Recursos Humanos — Generalista
+Grupo Andes S.A. | Buenos Aires
+
+Responsabilidades:
+- Liquidacion mensual de sueldos y jornales de la nomina
+- Gestion de altas, bajas y modificaciones ante los organismos
+- Control de licencias, ausentismo y novedades
 
 REQUISITOS EXCLUYENTES:
-- 3+ años de experiencia en análisis de datos
-- SQL avanzado (subqueries, joins, CTEs)
-- Python para análisis (pandas, numpy)
-- Power BI o Tableau
+- Experiencia comprobable en liquidacion de sueldos y jornales
+- Conocimiento de normativa AFIP y SICOSS
+- Manejo de administracion de personal (altas, bajas, licencias)
 
 REQUISITOS DESEABLES:
-- scikit-learn o conocimientos de ML
-- Experiencia en industria financiera o fintech
-- Inglés intermedio (B2)`;
-
-  document.getElementById('cv').value = `Lucía Fernández — Analista de Datos
-Cargo actual: Analista de Datos Sr. — Banco Meridian S.A. (2021–presente)
+- Experiencia en encuestas de clima laboral
+- Ingles intermedio`,
+  rrhh_cv: `Maria Lopez — Analista de Recursos Humanos
+Perfil: Analista de RRHH con 6 anos de experiencia en administracion de personal y liquidacion de haberes.
 
 Experiencia:
-2021–presente | Banco Meridian S.A.
-- Desarrollo de dashboards en Power BI para seguimiento de riesgo crediticio
-- Procesamiento de datos con Python (pandas) y SQL avanzado Oracle (CTEs, joins, subqueries)
-- Reporting mensual para gerencia de producto
+Analista de RRHH Senior — Consultora ABC (2020 - presente)
+- Liquidacion mensual de haberes para una nomina de 200 empleados
+- Presentaciones y control ante AFIP y SICOSS
+- Gestion integral de altas y bajas de personal y administracion de licencias
 
-2019–2021 | DataSur Consultora
-- Visualizaciones en Tableau para clientes de retail
-- Análisis exploratorio con Python y Excel
-- Consultas SQL en PostgreSQL
+Asistente de Administracion de Personal — Estudio Contable (2018 - 2020)
+- Administracion de legajos y carga de novedades de nomina
 
-Educación:
-Lic. en Ciencias de Datos — UBA (2019)
-Certificación PL-300 Power BI — Microsoft (2022)
+Educacion: Lic. en Relaciones del Trabajo (UBA)
+Idiomas: Ingles intermedio (B1)`,
+  mkt_cv: `Nicolas Ferreyra — Especialista en Marketing Digital
+Perfil: Profesional de marketing digital con 5 anos de experiencia en performance, SEO y analitica.
 
-Idiomas: Inglés B2 (certificado Cambridge)`;
+Experiencia:
+Digital Marketing Specialist — Agencia Delta (2021 - presente)
+- Campanas de performance en Google Ads y Meta Ads
+- Estrategias de posicionamiento SEO on-page y off-page
+- Analisis en Google Analytics
+
+Educacion: Lic. en Marketing
+Habilidades: Google Ads, Meta Ads, SEO, Google Analytics`,
+  corto_cv: `Pedro Gomez — Administrativo
+Administrativo con manejo de Excel.`,
+  ds_jd: `Data Scientist
+Banco Digital | Remoto
+
+Descripcion: Sumamos un Data Scientist al equipo de riesgo para desarrollar modelos predictivos.
+
+REQUISITOS EXCLUYENTES:
+- Python
+- Machine Learning (modelos predictivos)
+- SQL
+
+REQUISITOS DESEABLES:
+- Cloud (AWS o GCP)`,
+  ds_cv: `Lucas Prieto — Cientifico de Datos
+Perfil: Cientifico de datos con 4 anos de experiencia desarrollando modelos analiticos para el sector financiero.
+
+Experiencia:
+Cientifico de Datos — Banco (2020 - presente)
+- Desarrollo de modelos de prediccion de churn y de scoring crediticio con scikit-learn en Python
+- Extraccion y preparacion de datos con SQL
+- Despliegue de modelos en Google Cloud Platform
+
+Educacion: Lic. en Ciencia de Datos
+Habilidades: Python, scikit-learn, modelos predictivos, SQL, GCP`,
+};
+
+function _resetView() {
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('candidates-section').style.display = 'none';
+  document.getElementById('kb-section').style.display = 'none';
+  document.getElementById('err').textContent = '';
+}
+
+// Demo 1 — Ranking + casos borde (batch de 3 CVs contra un puesto de RRHH)
+function loadDemo1() {
+  document.getElementById('jd').value = DEMO.rrhh_jd;
+  document.getElementById('cv').value = '';
+  batchCVs = [
+    { name: 'Maria Lopez · RRHH (matchea)', text: DEMO.rrhh_cv },
+    { name: 'Nicolas Ferreyra · Marketing (otra area)', text: DEMO.mkt_cv },
+    { name: 'Pedro Gomez · CV muy corto', text: DEMO.corto_cv },
+  ];
+  renderCVList();
+  const st = document.getElementById('cv-status');
+  st.textContent = '✓ Demo 1 cargada: 3 CVs vs puesto de RRHH'; st.style.color = 'var(--green)';
+  _resetView();
+}
+
+// Demo 2 — Matching semantico (1 CV contra un puesto de Data Scientist)
+function loadDemo2() {
+  document.getElementById('jd').value = DEMO.ds_jd;
+  batchCVs = [];
+  renderCVList();
+  document.getElementById('cv').value = DEMO.ds_cv;
+  const st = document.getElementById('cv-status');
+  st.textContent = '✓ Demo 2 cargada: matching semantico'; st.style.color = 'var(--green)';
+  _resetView();
 }
 </script>
 </body>
