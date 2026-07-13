@@ -756,72 +756,108 @@ function renderResults(t1, t2, t3, t4, val) {
 }
 
 const DEMO = {
-  rrhh_jd: `Analista de Recursos Humanos — Generalista
-Grupo Andes S.A. | Buenos Aires
-
-Responsabilidades:
-- Liquidacion mensual de sueldos y jornales de la nomina
-- Gestion de altas, bajas y modificaciones ante los organismos
-- Control de licencias, ausentismo y novedades
-
-REQUISITOS EXCLUYENTES:
-- Experiencia comprobable en liquidacion de sueldos y jornales
-- Conocimiento de normativa AFIP y SICOSS
-- Manejo de administracion de personal (altas, bajas, licencias)
-
-REQUISITOS DESEABLES:
-- Experiencia en encuestas de clima laboral
-- Ingles intermedio`,
-  rrhh_cv: `Maria Lopez — Analista de Recursos Humanos
-Perfil: Analista de RRHH con 6 anos de experiencia en administracion de personal y liquidacion de haberes.
-
-Experiencia:
-Analista de RRHH Senior — Consultora ABC (2020 - presente)
-- Liquidacion mensual de haberes para una nomina de 200 empleados
-- Presentaciones y control ante AFIP y SICOSS
-- Gestion integral de altas y bajas de personal y administracion de licencias
-
-Asistente de Administracion de Personal — Estudio Contable (2018 - 2020)
-- Administracion de legajos y carga de novedades de nomina
-
-Educacion: Lic. en Relaciones del Trabajo (UBA)
-Idiomas: Ingles intermedio (B1)`,
-  mkt_cv: `Nicolas Ferreyra — Especialista en Marketing Digital
-Perfil: Profesional de marketing digital con 5 anos de experiencia en performance, SEO y analitica.
-
-Experiencia:
-Digital Marketing Specialist — Agencia Delta (2021 - presente)
-- Campanas de performance en Google Ads y Meta Ads
-- Estrategias de posicionamiento SEO on-page y off-page
-- Analisis en Google Analytics
-
-Educacion: Lic. en Marketing
-Habilidades: Google Ads, Meta Ads, SEO, Google Analytics`,
-  corto_cv: `Pedro Gomez — Asistente Administrativo
-Experiencia en administracion de personal y manejo de legajos. Ingles intermedio. Excel.`,
+  rrhh_jd: `Analista de Recursos Humanos - Generalista
+Grupo Andes S.A.  |  Buenos Aires (hibrido)  |  Jornada completa
+Sobre la empresa
+Grupo Andes es una compania nacional del sector consumo masivo con mas de 1.200 colaboradores.
+Buscamos sumar a nuestro equipo de Capital Humano un perfil generalista con solida experiencia en
+administracion de personal.
+Descripcion del puesto
+El  Analista  de  RRHH  sera  responsable  del  ciclo  de  administracion  de  personal  y  liquidacion,  dando
+soporte a las distintas areas del negocio y asegurando el cumplimiento de la normativa vigente.
+Responsabilidades
+•  Liquidacion mensual de sueldos y jornales de la nomina
+•  Gestion de altas, bajas y modificaciones ante los organismos
+•  Control de licencias, ausentismo y novedades
+•  Atencion a consultas de los colaboradores
+Requisitos excluyentes
+•  Experiencia comprobable en liquidacion de sueldos y jornales
+•  Conocimiento de normativa AFIP y SICOSS
+•  Manejo de administracion de personal (altas, bajas, licencias)
+Requisitos deseables
+•  Experiencia en encuestas de clima laboral
+•  Ingles intermedio
+Que ofrecemos
+•  Cobertura medica de primer nivel y bonos por desempeno
+•  Plan de desarrollo y capacitacion continua`,
+  rrhh_cv: `Maria Lopez
+Analista de Recursos Humanos  |  maria.lopez@email.com  |  +54 11 5555-1234  |  Buenos Aires
+Perfil profesional
+Analista de RRHH con 6 anos de experiencia en administracion de personal y liquidacion de haberes en
+empresas medianas y grandes. Orientada al detalle, al cumplimiento normativo y al buen trato con los
+colaboradores.
+Experiencia laboral
+Analista de RRHH Senior - Consultora ABC (2020 - presente)
+•  Liquidacion mensual de haberes para una nomina de 200 empleados
+•  Presentaciones y control ante AFIP y SICOSS
+•  Gestion integral de altas y bajas de personal y administracion de licencias
+•  Punto de contacto para consultas de nomina de todas las areas
+Asistente de Administracion de Personal - Estudio Contable (2018 - 2020)
+•  Administracion de legajos y carga de novedades de nomina
+•  Apoyo en la liquidacion de sueldos de clientes pyme
+Educacion
+•  Lic. en Relaciones del Trabajo - Universidad de Buenos Aires (UBA)
+Habilidades
+•  Liquidacion de sueldos, AFIP, SICOSS, administracion de personal, Excel
+Idiomas
+•  Espanol (nativo), Ingles intermedio (B1)`,
+  mkt_cv: `Nicolas Ferreyra
+Especialista en Marketing Digital  |  nico.ferreyra@email.com  |  +54 11 4444-9876
+Perfil profesional
+Profesional de marketing digital con 5 anos de experiencia en performance marketing, SEO y analitica.
+Apasionado por los datos y la optimizacion continua de campanas.
+Experiencia laboral
+Digital Marketing Specialist - Agencia Delta (2021 - presente)
+•  Planificacion y optimizacion de campanas de performance en Google Ads y Meta Ads
+•  Estrategias de posicionamiento SEO on-page y off-page
+•  Analisis de resultados y embudos de conversion en Google Analytics
+Analista de Marketing - Ecommerce XY (2019 - 2021)
+•  Definicion de estrategias de marketing digital para captacion y retencion
+•  Campanas de email marketing con Mailchimp
+•  Gestion de la base de clientes en Salesforce (CRM)
+Educacion
+•  Lic. en Marketing - Universidad Argentina de la Empresa (UADE)
+Habilidades
+•  Google Ads, Meta Ads, SEO, Google Analytics, email marketing, CRM
+Idiomas
+•  Espanol (nativo), Ingles avanzado`,
+  corto_cv: `Pedro Gomez
+Administrativo
+Administrativo con manejo de Excel.`,
   ds_jd: `Data Scientist
-Banco Digital | Remoto
-
-Descripcion: Sumamos un Data Scientist al equipo de riesgo para desarrollar modelos predictivos.
-
-REQUISITOS EXCLUYENTES:
-- Python
-- Machine Learning (modelos predictivos)
-- SQL
-
-REQUISITOS DESEABLES:
-- Cloud (AWS o GCP)`,
-  ds_cv: `Lucas Prieto — Cientifico de Datos
-Perfil: Cientifico de datos con 4 anos de experiencia desarrollando modelos analiticos para el sector financiero.
-
-Experiencia:
-Cientifico de Datos — Banco (2020 - presente)
-- Desarrollo de modelos de prediccion de churn y de scoring crediticio con scikit-learn en Python
-- Extraccion y preparacion de datos con SQL
-- Despliegue de modelos en Google Cloud Platform
-
-Educacion: Lic. en Ciencia de Datos
-Habilidades: Python, scikit-learn, modelos predictivos, SQL, GCP`,
+Banco Digital  |  Remoto
+Descripcion del puesto
+Sumamos un Data Scientist al equipo de riesgo para desarrollar modelos predictivos.
+Requisitos excluyentes
+•  Python
+•  Machine Learning (modelos predictivos)
+•  SQL
+Requisitos deseables
+•  Cloud (AWS o GCP)
+Responsabilidades
+•  Desarrollo y validacion de modelos
+•  Analisis de grandes volumenes de datos`,
+  ds_cv: `Lucas Prieto
+Cientifico de Datos  |  lucas.prieto@email.com  |  Buenos Aires
+Perfil profesional
+Cientifico  de  datos  con  4  anos  de  experiencia  desarrollando  modelos  analiticos  y  predictivos  para  el
+sector  financiero.  Me  apasiona  convertir  datos  en  decisiones  y  colaborar  con  las  areas  de  riesgo  y
+negocio.
+Experiencia laboral
+Cientifico de Datos - Banco Digital (2020 - presente)
+•  Desarrollo de modelos de prediccion de churn de clientes y de scoring crediticio con scikit-learn en
+Python, mejorando la precision del area de riesgo.
+•   Extraccion,  limpieza  y  preparacion  de  grandes  volumenes  de  datos  con  SQL  sobre  la  base
+transaccional.
+•  Despliegue y monitoreo de modelos en produccion sobre Google Cloud Platform.
+Analista de Datos - Consultora Analytics (2019 - 2020)
+•  Analisis exploratorio y reportes con Python (pandas) y SQL para clientes de banca y retail.
+Educacion
+•  Licenciatura en Ciencia de Datos
+Habilidades
+•  Python, scikit-learn, modelos predictivos, SQL, Google Cloud, pandas
+Idiomas
+•  Espanol (nativo), Ingles avanzado`,
 };
 
 function _resetView() {
