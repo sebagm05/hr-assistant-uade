@@ -249,6 +249,7 @@
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -356,6 +357,10 @@
 
   <!-- Results -->
   <div id="results">
+
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button class="btn-secondary" onclick="downloadPDF()">📄 Descargar informe (PDF)</button>
+    </div>
 
     <div class="score-section">
       <div class="score-card">
@@ -496,6 +501,7 @@ function setStep(n, done) {
 
 let batchCVs = [];
 let candidates = [];
+let currentCand = null;
 
 async function handleCVFiles(input) {
   const status = document.getElementById('cv-status');
@@ -631,10 +637,81 @@ function renderCandidatesTable() {
 
 function selectCandidate(i) {
   const c = candidates[i];
+  currentCand = c;
   renderResults(c.t1, c.t2, c.t3, c.t4, c.val);
   document.getElementById('results').style.display = 'block';
   document.querySelectorAll('#cand-tbody tr').forEach((tr, idx) => tr.classList.toggle('selected', idx === i));
   document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+}
+
+function _san(s) {
+  return String(s == null ? '' : s)
+    .replace(/[–—]/g, '-').replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"').replace(/[•]/g, '-')
+    .replace(/[^\x00-\xff]/g, '');
+}
+
+function downloadPDF() {
+  if (!currentCand || !window.jspdf) { alert('Primero seleccioná un candidato.'); return; }
+  const c = currentCand;
+  const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
+  const M = 42, W = doc.internal.pageSize.getWidth(), Hp = doc.internal.pageSize.getHeight();
+  let y = 54;
+  function nl(h) { if (y + h > Hp - M) { doc.addPage(); y = 54; } }
+  function txt(s, size, style, color, gap) {
+    doc.setFont('helvetica', style || 'normal'); doc.setFontSize(size || 10);
+    doc.setTextColor(color ? color[0] : 30, color ? color[1] : 30, color ? color[2] : 30);
+    doc.splitTextToSize(_san(s), W - M * 2).forEach(function (ln) { nl(size * 1.3); doc.text(ln, M, y); y += size * 1.3; });
+    if (gap) y += gap;
+  }
+  function head(s) { y += 7; nl(20); txt(s, 12, 'bold', [37, 99, 235], 3); }
+
+  const t1 = c.t1 || {}, t2 = c.t2 || {}, t3 = c.t3 || {}, val = c.val || {};
+  const score = Math.round(t3.match_score || 0);
+  const col = score >= 70 ? [5, 150, 105] : score >= 55 ? [180, 83, 9] : [220, 38, 38];
+
+  txt('Informe de Evaluacion de Candidato', 17, 'bold', [15, 23, 42], 2);
+  txt(c.name || 'Candidato', 12, 'normal', [90, 90, 90], 2);
+  txt('Generado por el Asistente de Seleccion (UADE) - ' + new Date().toLocaleDateString(), 9, 'normal', [140, 140, 140], 8);
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(col[0], col[1], col[2]);
+  nl(26); doc.text('Match Score: ' + score + '%', M, y); y += 22;
+  txt('Recomendacion: ' + (t3.recomendacion || '-'), 11, 'bold', col, 2);
+  txt(t3.justificacion_score || '', 10, 'normal', [80, 80, 80], 4);
+
+  head('Perfil extraido');
+  txt('Ultimo rol: ' + (t1.ultimo_rol || '-'), 10);
+  txt('Experiencia: ' + (t1.anos_experiencia_total || '-'), 10);
+  txt('Educacion: ' + (t1.nivel_educativo || '-'), 10);
+  txt('Confianza de extraccion: ' + (t1.confianza_extraccion || '-'), 10);
+  if ((t1.hard_skills || []).length) txt('Hard skills: ' + t1.hard_skills.join(', '), 10, 'normal', [80, 80, 80]);
+
+  head('Fortalezas (match fuerte)');
+  const mf = t2.match_fuerte || [];
+  if (!mf.length) txt('Sin coincidencias detectadas.', 10, 'normal', [120, 120, 120]);
+  mf.forEach(function (m) { txt('- ' + m.skill + ': "' + (m.evidencia_en_cv || '') + '"', 10); });
+
+  head('Brechas detectadas');
+  const exc = t2.brechas_excluyentes || [], des = t2.brechas_deseables || [];
+  if (!exc.length && !des.length) txt('Sin brechas: perfil completo.', 10, 'normal', [5, 150, 105]);
+  exc.forEach(function (b) { txt('[Excluyente] ' + b.requisito, 10, 'normal', [220, 38, 38]); });
+  des.forEach(function (b) { txt('[Deseable] ' + b.requisito, 10, 'normal', [180, 83, 9]); });
+
+  if (c.t4 && c.t4.preguntas) {
+    head('Guia de entrevista');
+    c.t4.preguntas.forEach(function (p, i) {
+      txt((i + 1) + '. [' + p.tipo + '] ' + p.pregunta, 10, 'bold');
+      txt('   Que buscar: ' + p.que_buscar, 9, 'normal', [90, 90, 90], 3);
+    });
+  }
+
+  head('Auditoria anti-alucinacion');
+  txt('Veredicto: ' + (val.veredicto || '-'), 10, 'bold');
+  ['control_1', 'control_2', 'control_3', 'control_4'].forEach(function (k, i) {
+    if (val[k]) txt('Control ' + (i + 1) + ': ' + val[k], 9);
+  });
+
+  doc.save('Informe_' + _san(c.name || 'candidato').replace(/[^a-zA-Z0-9]/g, '_') + '.pdf');
 }
 
 async function fetchKnowledge(jd) {
