@@ -25,9 +25,10 @@ Cargás una **descripción de puesto (JD)** y **uno o varios CVs** (PDF, DOCX o 
 
 Todo ordenado en una **tabla de candidatos** rankeada, más un panel de **RAG** que muestra qué documentos de referencia consultó.
 
-<!-- 📸 Agregá acá tus screenshots (ranking, detalle con el score, informe PDF): -->
-<!-- ![Ranking de candidatos](docs/ranking.png) -->
-<!-- ![Detalle del candidato](docs/detalle.png) -->
+<img width="1051" height="639" alt="image" src="https://github.com/user-attachments/assets/31283054-6508-4235-a8e0-2df87e59cc26" />
+<img width="1071" height="663" alt="image" src="https://github.com/user-attachments/assets/b026706f-3fe3-4027-8941-79fcddb08b05" />
+<img width="552" height="674" alt="image" src="https://github.com/user-attachments/assets/af2a5030-a01e-4abc-b356-191717bd0435" />
+
 
 ## Cómo funciona (arquitectura)
 
