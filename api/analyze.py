@@ -54,7 +54,8 @@ CV completo (texto original del candidato): {cv}
 Datos estructurados del CV (output T1): {json.dumps(t1, ensure_ascii=False)}
 Job Description: {jd}
 Devuelve SOLO este JSON exacto:
-{{"match_fuerte": [{{"skill": "<string>", "evidencia_en_cv": "<cita textual del CV>"}}], "brechas_excluyentes": [{{"requisito": "<string>", "severidad": "Crítica", "presente_en_cv": false}}], "brechas_deseables": [{{"requisito": "<string>", "severidad": "Moderada", "presente_en_cv": false}}]}}
+{{"match_fuerte": [{{"skill": "<string>", "evidencia_en_cv": "<cita textual del CV>"}}], "brechas_excluyentes": [{{"requisito": "<string>", "severidad": "Crítica", "presente_en_cv": false}}], "brechas_deseables": [{{"requisito": "<string>", "severidad": "Moderada", "presente_en_cv": false}}], "total_excluyentes": 0, "total_deseables": 0}}
+CONTEO DE REQUISITOS: "total_excluyentes" es la cantidad TOTAL de requisitos excluyentes que pide el JD (los que el candidato cumple MÁS los que le faltan); "total_deseables" es la cantidad total de deseables del JD. Cada total debe ser >= a la cantidad de brechas de ese tipo. Si el JD no marca excluyentes, total_excluyentes es 0 y todos sus requisitos van como deseables.
 MATCHING SEMÁNTICO (obligatorio): Evaluá cada requisito del JD por SIGNIFICADO, no por coincidencia de palabras. Buscá la evidencia en TODO el texto original del CV (perfil profesional, experiencia y descripciones narrativas), no solo en la lista de skills estructurada. Aplica también a habilidades BLANDAS y ACTITUDINALES (liderazgo, compromiso, trabajo en equipo, curiosidad), que suelen estar escritas en prosa. Para CADA requisito preguntate: ¿el CV muestra eso con otra redacción, un sinónimo, un término más específico, o una experiencia/frase que lo describe? Si la respuesta es sí, va en match_fuerte (con la cita textual del CV), NUNCA en brechas.
 Reconocé equivalencias por sinónimo, subconjunto y campo relacionado. Ejemplos entre áreas:
 - "marketing digital" o "campañas en Google Ads y Meta" CUBREN "estrategias de marketing"
@@ -114,28 +115,44 @@ Devuelve SOLO este JSON exacto:
 
 def compute_score(t2):
     """Calcula el Match Score de forma DETERMINISTA en Python (no vía LLM).
-    Fórmula documentada: base 100, -20 por brecha excluyente, -5 por deseable, mínimo 0.
-    Al no depender del modelo, el score es reproducible e idéntico para todos los perfiles."""
-    exc = t2.get("brechas_excluyentes") or []
-    des = t2.get("brechas_deseables") or []
+    Score PROPORCIONAL: mide el % de requisitos del JD que cumple el candidato,
+    ponderando cada requisito excluyente 3x sobre un deseable. Escala igual a JDs
+    cortos o largos (ej.: 8 de 10 excluyentes = 80%, no una penalización fija).
+    Reproducible e idéntico para todos los perfiles."""
+    exc_miss_list = t2.get("brechas_excluyentes") or []
+    des_miss_list = t2.get("brechas_deseables") or []
     fuertes = t2.get("match_fuerte") or []
-    score = max(0, min(100, 100 - 20 * len(exc) - 5 * len(des)))
+    exc_miss = len(exc_miss_list)
+    des_miss = len(des_miss_list)
+    exc_total = t2.get("total_excluyentes")
+    des_total = t2.get("total_deseables")
+
+    W_E, W_D = 3, 1  # un requisito excluyente pesa 3x un deseable
+    coherente = (isinstance(exc_total, int) and isinstance(des_total, int)
+                 and exc_total >= exc_miss and des_total >= des_miss
+                 and (exc_total + des_total) > 0)
+    if coherente:
+        exc_met = exc_total - exc_miss
+        des_met = des_total - des_miss
+        denom = exc_total * W_E + des_total * W_D
+        score = round(100 * (exc_met * W_E + des_met * W_D) / denom) if denom else 100
+        justif = (f"Cumple {exc_met}/{exc_total} requisitos excluyentes y {des_met}/{des_total} deseables. "
+                  f"Score proporcional (los excluyentes pesan {W_E}x).")
+    else:
+        # Fallback: penalización absoluta si el modelo no reportó los totales.
+        score = 100 - 20 * exc_miss - 5 * des_miss
+        justif = (f"{len(fuertes)} coincidencia(s) fuerte(s); {exc_miss} brecha(s) excluyente(s) y "
+                  f"{des_miss} deseable(s).")
+
+    score = max(0, min(100, int(score)))
     if score >= 70:
         rec = "Avanzar a entrevista"
     elif score >= 55:
         rec = "Revisión manual"
     else:
         rec = "Descartar"
-    penal = ([{"requisito": b.get("requisito", ""), "descuento": 20} for b in exc]
-             + [{"requisito": b.get("requisito", ""), "descuento": 5} for b in des])
-    partes = [f"{len(fuertes)} coincidencia(s) fuerte(s)"]
-    if exc:
-        partes.append(f"{len(exc)} brecha(s) excluyente(s) (-20 c/u)")
-    if des:
-        partes.append(f"{len(des)} brecha(s) deseable(s) (-5 c/u)")
-    if not exc and not des:
-        partes.append("sin brechas")
-    justif = "Score = 100 - penalizaciones. " + "; ".join(partes) + "."
+    penal = ([{"requisito": b.get("requisito", ""), "tipo": "excluyente"} for b in exc_miss_list]
+             + [{"requisito": b.get("requisito", ""), "tipo": "deseable"} for b in des_miss_list])
     return {
         "match_score": score,
         "recomendacion": rec,
